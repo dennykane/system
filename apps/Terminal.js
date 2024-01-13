@@ -31,6 +31,7 @@ that all of the normal piping and redirections should work.
 //Development mod deleting«
 
 const DEL_MODS=[
+	"util.less",
 	"util.vim",
 //	"webmparser"
 //	"pager"
@@ -38,7 +39,7 @@ const DEL_MODS=[
 const DEL_COMS=[
 //	"yt",
 //	"test",
-	"fs",
+//	"fs",
 ];
 //»
 
@@ -46,15 +47,17 @@ const DEL_COMS=[
 
 import { util, api as capi } from "util";
 import { globals } from "config";
-const{strnum, isarr, isstr, isnum, isobj, make, KC, kc, log, jlog, cwarn, cerr}=util;
-const{NS, TEXT_EDITOR_APP, LINK_APP, FOLDER_APP,FS_TYPE,MOUNT_TYPE,fs, isMobile, shell_libs, dev_mode}=globals;
+const{strnum, isarr, isstr, isnum, isobj, make, kc, log, jlog, cwarn, cerr}=util;
+const{KC, DEF_PAGER_MOD_NAME, NS, TEXT_EDITOR_APP, LINK_APP, FOLDER_APP, FS_TYPE, MOUNT_TYPE, fs, isMobile, shell_libs, dev_mode}=globals;
 const fsapi = fs.api;
 const widgets = NS.api.widgets;
+const {poperr} = widgets;
 const {normPath}=capi;
 const {pathToNode}=fsapi;
 
 const HISTORY_FOLDER = `${globals.HOME_PATH}/.history`;
 const HISTORY_PATH = `${HISTORY_FOLDER}/shell.txt`;
+const HISTORY_PATH_SPECIAL = `${HISTORY_FOLDER}/shell_special.txt`;
 const LEFT_KEYCODE = KC.LEFT;
 
 
@@ -1470,8 +1473,8 @@ const shell_tokify = line_arr => {//«
 		let arr = line_arr[i];
 		for (let j = 0; j < arr.length; j++) {
 			let ch = arr[j];
-			let ch1 = arr[j + 1];
-
+			let ch1 = arr[j+1];
+			if (ch==" " &&ch1=="#") break;
 			if (shell_metas.includes(ch)) {//«
 				if (word) ret.push(mkword(word.join("")));
 				if (ch == "\t" || ch == " ") {
@@ -1555,7 +1558,6 @@ const shell_tokify = line_arr => {//«
 					}
 				}
 			}//»
-
 		}
 		if (word) {
 			let useword = word.join("");
@@ -2113,11 +2115,12 @@ const REPLACE_MODE = 3;
 const VIS_LINE_MODE = 4;
 const VIS_MARK_MODE = 5;
 const VIS_BLOCK_MODE = 6;
-const VIS_BLOCK_SILENT_MODE = 7;
-const STAT_INPUT_MODE = 8;
+const CUT_BUFFER_MODE = 7;
+const LINE_WRAP_MODE = 8;
 const SYMBOL_MODE = 9;
 const FILE_MODE = 10;
 const COMPLETE_MODE = 11;
+
 //»
 
 let PARAGRAPH_SELECT_MODE = true; //Toggle with Ctrl+Alt+p«
@@ -2263,9 +2266,10 @@ let bufpos = 0;
 let sleeping = null;
 
 let cur_ps1;
-let cur_prompt="$";
 
 const OK_READLINE_SYMS=["DEL_","BACK_","LEFT_", "RIGHT_"];
+let stat_spans;
+
 //let cur_dir;
 
 //»
@@ -2415,6 +2419,41 @@ main.appendChild(areadiv);
 //»
 
 //Util«
+
+const pager_select_mode=async(arr, name)=>{//«
+
+	if (!await capi.loadMod(DEF_PAGER_MOD_NAME)) {
+		return poperr("Could not load the pager module");
+	}
+	let less = new NS.mods[DEF_PAGER_MOD_NAME](this);
+	if (await less.init(arr, name, {lineSelect: true, opts: {}})) return arr[less.y+less.scroll_num];
+
+}//»
+const select_from_history = async path => {//«
+	let arr = await path.toLines();
+	if (!isarr(arr) && arr.length) {
+cwarn("No history lines from", path);
+		return;
+	}
+	cur_scroll_command = await pager_select_mode(arr, path.split("/").pop());
+	if (cur_scroll_command) insert_cur_scroll();
+	render();
+}//»
+
+const save_special_command = async () => {//«
+	let s = get_com_arr().join("");
+	if (!s.match(/[a-z]/i)) {
+log("Not saving", s);
+		return;
+	}
+	if (await fsapi.writeFile(HISTORY_PATH_SPECIAL, `${s}\n`, {append: true})) return do_overlay(`Saved special: ${s}`);
+	poperr(`Could not write to: ${HISTORY_PATH_SPECIAL}!`);
+};//»
+const save_history = async()=>{//«
+	if (!await fsapi.writeFile(HISTORY_PATH, history.join("\n")+"\n")){
+		poperr(`Problem writing command history to: ${HISTORY_PATH}`);
+	}
+};//»
 const execute_kill_funcs=(cb)=>{//«
 	let iter = -1;
 	let dokill=()=>{
@@ -2447,11 +2486,6 @@ const toggle_paste=()=>{//«
 	textarea.focus();
 	do_overlay("Pasting is on");
 
-};//»
-const savehist = async()=>{//«
-	if (!await fsapi.writeFile(HISTORY_PATH, history.join("\n")+"\n")){
-cwarn(`Problem writing to history path: ${HISTORY_PATH}`);
-	}
 };//»
 
 const dopaste=()=>{//«
@@ -2924,20 +2958,23 @@ const render = (opts={})=>{
 	let ry;
 	let mode;
 	let symbol;
-	if (actor) ({stat_input_type,stat_com_arr,stat_message,stat_message_type}=actor);
+	let line_select_mode;
+
+	if (actor) ({stat_input_type,stat_com_arr,stat_message,stat_message_type, line_select_mode}=actor);
 	if (!stat_input_type) stat_input_type="";
 //	if (editor) ({splice_mode, macro_mode,visual_block_mode,tab_lines,visual_line_mode,visual_mode,show_marks,seltop,selbot,selleft,selright,selmark,error_cursor, opts, num_lines, ry}=editor);
 	if (editor) ({mode,symbol,seltop,selbot,selleft,selright,selmark,opts,num_lines,ry}=editor);
 	if (!(ncols&&nrows)) return;
-	let visual_line_mode = mode===VIS_LINE_MODE;
+	let visual_line_mode = (mode===VIS_LINE_MODE) || line_select_mode;
+	if (line_select_mode) seltop = selbot = scroll_num+y;
+	
 	if (mode===SYMBOL_MODE||mode===COMPLETE_MODE){
 		visual_line_mode = true;
 		seltop = selbot = y+scroll_num;
 	}
 	let visual_block_mode = mode===VIS_BLOCK_MODE;
-	let visual_block_mode_sil = mode===VIS_BLOCK_SILENT_MODE;
 	let visual_mark_mode = mode===VIS_MARK_MODE;
-	let visual_mode = visual_line_mode || visual_mark_mode || visual_block_mode||visual_block_mode_sil;
+	let visual_mode = visual_line_mode || visual_mark_mode || visual_block_mode;
 	let docursor = false;
 	if (opts.noCursor){}
 	else if (!TERMINAL_IS_LOCKED) docursor = true;
@@ -2973,9 +3010,7 @@ const render = (opts={})=>{
 		uselines.push(noline);
 	}//»
 	let len = uselines.length;//«
-	if (len + num_stat_lines != h) {
-		donum = h - num_stat_lines;
-	}
+	if (len + num_stat_lines != h) donum = h - num_stat_lines;
 	else donum = len;//»
 	for (let i = 0; i < donum; i++) {//«
 		let ind;
@@ -2989,8 +3024,9 @@ const render = (opts={})=>{
 		if (gotit > -1) arr[gotit] = " ";
 		let curnum = i+usescroll;
 		let colobj = line_colors[curnum];
-//		if ((visual_line_mode||visual_mark_mode||visual_block_mode)&&seltop<=curnum&&selbot>=curnum){
+
 		if (visual_mode&&seltop<=curnum&&selbot>=curnum){//«
+
 			if (visual_line_mode) {//«
 				let ln_min1 = arr.length-1;
 				if (ln_min1 == -1) ln_min1=0;
@@ -3047,6 +3083,7 @@ throw new Error("WUTUTUTU");
 			}
 		}//»
 		else if (colobj){//«
+//		else if (colobj){
 			let nums = Object.keys(colobj);
 			for (let numstr of nums) {
 				if (numstr.match(/^_/)) continue;
@@ -3062,22 +3099,23 @@ throw new Error("WUTUTUTU");
 				arr[num1] = str;
 				if (arr[num2]) arr[num2] = arr[num2]+"</span>";
 				else arr[num2] = "</span>";
+//log(2, arr);
 if (num2 > w) {
 //console.log("LONGLINE");
 	break;
 }
 			}
 		}//»
+
+
 		if (!(pager||is_buf_scroll||stat_input_type||is_scrolling)) {//«
 			if (docursor && i==y) {
-				if (!arr[usex]||arr[usex]=="\x00") {
-					arr[usex]=" ";
-				}
-				else if (arr[usex]=="\n") arr[usex] = " <br>";
-				let usebg = CURBG;
+				let usebg;
 				if (!topwin_focused) usebg = CURBG_BLURRED;
 				else if (this.ssh_immediate_mode) usebg = CURBG_SSH_MODE;
 				else usebg = CURBG;
+				if (!arr[usex]||arr[usex]=="\x00") arr[usex]=" ";
+				else if (arr[usex]=="\n") arr[usex] = " <br>";
 				let ch = arr[usex]||" ";
 				let pre="";
 				let usech;
@@ -3089,18 +3127,15 @@ if (num2 > w) {
 				else usech = ch;
 				if (!usech.length) usech = " ";
 				let sty = `background-color:${usebg}`;
-//				if (topwin_focused) sty = `background-color:${usebg}`;
-//				else sty = `background-color:${usebg}`;
-				
-//				else sty=`border:1px solid ${usebg}`;
 				arr[usex] = pre+`<span id="${CURSOR_ID}" style="${sty}">${usech}</span>`;
 			}
 		}//»
+
 		let s = arr.join("");
 		if (actor && !arr._noline && highlight_actor_bg) outarr.push(`<span style="background-color:${ACTOR_HIGHLIGHT_COLOR};">${s}</span>`);
 		else outarr.push(s);
-	}//»
 
+	}//»
 	if (actor) {//«
 		let usestr;
 		if (stat_input_type) {//«
@@ -3127,6 +3162,7 @@ if (num2 > w) {
 			let mess="", messtype, messln=0;
 			if (stat_message) {//«
 				mess = stat_message;
+				messln = mess.length;
 				mess = mess.replace(/&/g,"&amp;");
 				mess = mess.replace(/</g,"&lt;");
 				let t = stat_message_type;
@@ -3138,7 +3174,7 @@ if (num2 > w) {
 					bgcol="#c44";
 					tcol="#fff";
 				}
-				if (bgcol) mess = '<span style="color:'+tcol+';background-color:'+bgcol+'">'+mess+'</span>';
+				if (bgcol) mess = `<span style="color:${tcol};background-color:${bgcol}">${mess}</span>`;
 				editor.stat_message=null;
 			}//»
 			else {//«
@@ -3155,8 +3191,10 @@ if (num2 > w) {
 				else if (visual_mark_mode) mess = "-- VISUAL --";
 				else if (visual_block_mode) mess = "-- VISUAL BLOCK --";
 				else if (mode === FILE_MODE) mess = "-- FILE --";
+				else if (mode === CUT_BUFFER_MODE) mess = `-- CUT BUFFER: ${editor.cur_cut_buffer+1}/${editor.num_cut_buffers} --`;
+				else if (mode === LINE_WRAP_MODE) mess = "-- LINE WRAP --";
+				messln = mess.length;
 			}//»
-			messln = mess.length;
 			let per;
 			let t,b;
 			if (scroll_num==0) t = true;
@@ -3177,7 +3215,13 @@ if (num2 > w) {
 			let perx = w-5;
 			if (perln > 4) per = "?%";
 			per = "\x20".repeat(4-perln)+per;
-			let lncol = (ry+1)+","+(x+1);
+			let lncol;
+			if (mode===LINE_WRAP_MODE){
+				lncol = (editor.line_wrap_y+1)+","+(editor.line_wrap_x+1);
+			}
+			else{
+				lncol = (ry+1)+","+(x+1);
+			}
 			let lncolln = lncol.length;
 			let lncolx = w - 18;
 			let diff = lncolx - messln;
@@ -3186,7 +3230,7 @@ if (num2 > w) {
 			if (diff2 <= 0) diff2 = 1;
 			let spaces = "\x20".repeat(diff) + lncol + "\x20".repeat(diff2)+per;
 			let str = mess + spaces;
-			usestr = '<span>'+str+'</span>';
+			usestr = `<span>${str}</span>`;
 		}//»
 		else if (stat_message){//«
 			usestr = stat_message;
@@ -3198,17 +3242,14 @@ if (num2 > w) {
 			usestr = `${pager.fname} ${per}% of ${lines.length} lines (press q to quit)`;
 			if (!stat_input_type) usestr = '<span style=background-color:#aaa;color:#000>'+usestr+'</span>'
 		}//»
-//		outarr.push(usestr);
 		update_stat_lines([usestr]);
 	}//»
 	if (min_height && h < min_height){
 		tabdiv.innerHTML=`<center><span style="background-color:#f00;color:#fff;">Min height: ${min_height}</span></center>`;
 	}
 	else tabdiv.innerHTML = outarr.join("\n");
-//log(tabdiv.innerHTML);
 };
 
-let stat_spans;
 const generate_stat_html=()=>{//«
 	stat_spans = [];
 	statdiv.innerHTML="";
@@ -3304,10 +3345,12 @@ const clear_table=()=>{//«
 	lines = [];
 	line_colors = [];
 //	}
+	y=0;
 	scroll_num = 0;
 	render();
 };//»
 const clear=()=>{//«
+//log("????");
 //const clear=(if_keep_buffer)=>{
 //	clear_table(if_keep_buffer);
 	clear_table();
@@ -3483,6 +3526,18 @@ const execute = async(str, if_init, halt_on_fail)=>{//«
 };
 //»
 const get_prompt_str=()=>{//«
+	let str;
+	let user = ENV.USER;
+	if (this.ssh_immediate_mode && this.ssh_cwd) str = this.ssh_cwd.replace(/^\/+/, "/");
+	else str = this.cur_dir.replace(/^\/+/, "/");
+	str = str+"$";
+	if ((new RegExp("^/home/"+user+"\\$$")).test(str)) str = "~$";
+	else if ((new RegExp("^/home/"+user+"/")).test(str)) str = str.replace(/^\/home\/[^\/]+\x2f/,"~/");
+	return str + " ";
+};//»
+
+/*Old complicated prompt crap«
+const get_prompt_str=()=>{//«
 	let goodch = ["u", "U", "h", "H", "d", "t", "w"];
 	let gotps = ENV.PS1;
 	let ds = "\$";
@@ -3534,6 +3589,8 @@ const get_prompt_str=()=>{//«
 	cur_prompt=cur_prompt.replace(/ *$/, " ");
 	return cur_prompt.replace(/ /g, "\xa0");
 };//»
+»*/
+
 const set_prompt=(opts={})=>{//«
 	let if_nopush = opts.NOPUSH;
 	let if_noscroll = opts.NOSCROLL;
@@ -3589,9 +3646,9 @@ const set_prompt=(opts={})=>{//«
 	line_continue_flag = false;
 };
 //»
-const insert_cur_scroll=()=>{//«
+const insert_cur_scroll = () => {//«
 	com_scroll_mode = false;
-	lines = lines_hold_2.slice(0, lines.length);
+	if (lines_hold_2) lines = lines_hold_2.slice(0, lines.length);
 	let str = cur_scroll_command;
 	let arr = fmt_lines_sync(str.split("\n"), prompt_len);
 	let curarr = get_prompt_str().split("");
@@ -3610,7 +3667,7 @@ const insert_cur_scroll=()=>{//«
 	cur_scroll_command = null;
 	return str;
 };//»
-const get_dir_contents=async(dir, pattern, opts={})=>{//«
+const get_dir_contents = async(dir, pattern, opts={})=>{//«
 	let {if_cd, if_keep_ast} = opts;
 	const domatch=async()=>{//«
 		kids = ret.kids;
@@ -4377,7 +4434,6 @@ const handle_backspace=()=>{//«
 		if (cx()==0 && y==0) return;
 		if (cx()==0 && (cy()-1) < cur_prompt_line) return;
 		if (cur_scroll_command) insert_cur_scroll();
-
 		if (cx()==0 && cy() > 0) {//«
 //JEPOIKLMJYH
 			if (lines[cy()].length < w) {//«
@@ -4575,7 +4631,7 @@ const handle_priv=(sym, code, mod, ispress, e)=>{//«
 	if (sleeping) {
 		if (ispress || sym=="BACK_") return;
 	}
-	if (cur_shell){
+	if (cur_shell){//«
 		if (sym==="c_C") {
 			cur_shell.cancelled_time = (new Date).getTime();
 			cur_shell = null;
@@ -4611,16 +4667,17 @@ const handle_priv=(sym, code, mod, ispress, e)=>{//«
 			}
 		}
 		else return;
-	}
-	if (!lines[cy()]) {
+	}//»
+	if (!lines[cy()]) {//«
 		if (code == 75 && alt) return;
 		else {
 			if (cy() > 1 && !lines[cy()-1]) set_prompt();
 			else lines[cy()] = [null];
 		}
-	}
+	}//»
+
 	let ret = null;
- 	if (ispress) {
+ 	if (ispress) {//«
 		num_ctrl_d = 0;
 		if (buffer_scroll_num!==null){
 			buffer_scroll_num = null;
@@ -4635,60 +4692,70 @@ const handle_priv=(sym, code, mod, ispress, e)=>{//«
 		else if (code == 8211) code = "-".charCodeAt();
 		else if (code == 3) {}
 		else if (code < 32) code = 127;
-		ret = handle_letter_press(String.fromCharCode(code)); 
+		handle_letter_press(String.fromCharCode(code)); 
+		return;
+	}//»
+	if (sym == "d_C") return do_ctrl_D();
+	num_ctrl_d = 0;
+	if (buffer_scroll_num!==null){
+		buffer_scroll_num = null;
+		x = hold_x;
+		y = hold_y;
+		render();
 	}
-	else {
-		if (sym == "d_C") return do_ctrl_D();
-		num_ctrl_d = 0;
-		if (buffer_scroll_num!==null){
-			buffer_scroll_num = null;
-			x = hold_x;
-			y = hold_y;
-			render();
-		}
-		if (code >= 37 && code <= 40) handle_arrow(code, mod, sym);
-		else if (sym=="HOME_"||sym=="END_") handle_page(sym);
-		else if (code == KC['DEL']) handle_delete(mod);
-		else if (sym=="p_CAS") toggle_paste();
-		else if (sym=="TAB_") {
- 			handle_tab();
-		}
-		else if (sym=="BACK_")  handle_backspace();
-		else if (sym=="ENTER_") handle_enter();
-		else if (sym == "c_C") do_ctrl_C();
-		else if (sym == "k_C") do_clear_line();
-		else if (sym == "y_C") {
-			for (let i=0; i < current_cut_str.length; i++) handle_letter_press(current_cut_str[i]);
-		}
-		else if (sym == "c_CAS") clear();
-		else if (sym=="a_C") {//«
-			e.preventDefault();
-			if (cur_scroll_command) insert_cur_scroll();
-			x=prompt_len;
-			y=cur_prompt_line - scroll_num;
-			if (y<0) {
-				scroll_num+=y;
-				y=0;
-			}
-			render();
-		}//»
-		else if (sym=="e_C") {//«
-			if (cur_scroll_command) insert_cur_scroll();
-			y=lines.length-scroll_num-1;
-			if (y>=h){
-				scroll_num+=y-h+1
-				y=h-1;
-			}
-			if (lines[cy()].length == 1 && !lines[cy()][0]) x = 0;
-			else x=lines[cy()].length;
-			render();
-		}//»
-//		else if (sym=="l_A") log(line_colors);
-		else if (sym=="l_A"){
-			do_delete_mods();
-		}
+	if (code >= 37 && code <= 40) handle_arrow(code, mod, sym);
+	else if (sym == "HOME_"|| sym == "END_") handle_page(sym);
+	else if (code == KC['DEL']) handle_delete(mod);
+	else if (sym == "p_CAS") toggle_paste();
+	else if (sym == "TAB_") {
+		handle_tab();
 	}
-	return ret;
+	else if (sym == "BACK_")  handle_backspace();
+	else if (sym == "ENTER_") handle_enter();
+	else if (sym == "c_C") do_ctrl_C();
+	else if (sym == "k_C") do_clear_line();
+	else if (sym == "y_C") {
+		for (let i=0; i < current_cut_str.length; i++) handle_letter_press(current_cut_str[i]);
+	}
+	else if (sym == "c_CAS") {
+		clear();
+		response_end();
+	}
+	else if (sym=="a_C") {//«
+		e.preventDefault();
+		if (cur_scroll_command) insert_cur_scroll();
+		x=prompt_len;
+		y=cur_prompt_line - scroll_num;
+		if (y<0) {
+			scroll_num+=y;
+			y=0;
+		}
+		render();
+	}//»
+	else if (sym=="e_C") {//«
+		if (cur_scroll_command) insert_cur_scroll();
+		y=lines.length-scroll_num-1;
+		if (y>=h){
+			scroll_num+=y-h+1
+			y=h-1;
+		}
+		if (lines[cy()].length == 1 && !lines[cy()][0]) x = 0;
+		else x=lines[cy()].length;
+		render();
+	}//»
+	else if (sym == "l_A"){
+//	else if (sym=="l_A") log(line_colors);
+		do_delete_mods();
+	}
+	else if (sym == "g_CAS"){
+		save_special_command();
+	}
+	else if (sym=="h_CAS"){
+		select_from_history(HISTORY_PATH);
+	}
+	else if (sym=="s_CAS"){
+		select_from_history(HISTORY_PATH_SPECIAL);
+	}
 };
 //»
 const handle=(sym, e, ispress, code, mod)=>{//«
@@ -4743,7 +4810,7 @@ const handle=(sym, e, ispress, code, mod)=>{//«
 	else await_next_tab = null;
 	if (e&&sym=="o_C") e.preventDefault();
 
-	if (sym=="s_CAS"){
+	if (editor && sym=="s_CAS"){
 		highlight_actor_bg = !highlight_actor_bg;
 		do_overlay(`Line highlighting: ${highlight_actor_bg}`);
 		render();
@@ -4874,12 +4941,13 @@ this.onsave=()=>{//«
 }//»
 
 this.onkill = (if_dev_reload)=>{//«
+
 	execute_kill_funcs();
 	if (this.cur_edit_node) this.cur_edit_node.unlockFile();
 	if (this.ssh_server) this.ssh_server.close();
 	else if (this.ssh_client) this.ssh_client.close();
 	if (!if_dev_reload) {
-		return savehist();
+		return save_history();
 	}
 
 	this.reInit={
@@ -4890,7 +4958,8 @@ this.onkill = (if_dev_reload)=>{//«
 		this.reInit.commandStr = actor.command_str;
 	}
 	do_delete_mods();
-	savehist();
+	save_history();
+
 }//»
 this.onfocus=()=>{//«
 	topwin_focused=true;
@@ -4928,6 +4997,9 @@ this.overrides = {//«
 //Terminal-specific methods
 
 //Editor/Pager specific«
+this.reset_x_scroll=()=>{
+	tabdiv._x = 0;
+};
 this.x_scroll_terminal=(opts={})=>{//«
 
 let {amt, toRightEdge, toLeftEdge} = opts;
@@ -4965,7 +5037,7 @@ return cwarn("x_scroll_terminal: nothing to do!!!");
 render();
 };//»
 this.clipboard_copy=(s)=>{do_clipboard_copy(null,s);};
-this.modequit=(arg)=>{//«
+this.modequit=(rv)=>{//«
 	statdiv._del();
 	tabdiv._x = 0;
 	let actor = editor||pager;
@@ -4978,7 +5050,7 @@ this.modequit=(arg)=>{//«
 	delete this.is_editing;
 	editor=pager=null;
 	if (actor&&actor.cb) {
-		actor.cb();
+		actor.cb(rv);
 	}
 	delete this.editor;
 //	return arg;

@@ -3,8 +3,10 @@
 
 //Window Namespace«
 
-window.__OS_NS__="System";
-window[__OS_NS__]={apps:{}, mods:{}, api:{}, coms:{}};
+window.__OS_NS__="_OS_";
+const api={};
+const NS = {apps:{}, mods:{}, api, coms:{}};
+window[__OS_NS__]= NS;
 
 //»
 
@@ -187,7 +189,8 @@ const ALWAYS_PREVENT = [
 	"s_C",
 	"f_C",
 	"p_C",
-	"u_C"
+	"u_C",
+	"k_C"
 ];
 
 //»
@@ -204,11 +207,170 @@ Array.prototype.uniqSort=function(opts={}){//«
 Array.prototype.uniq=function(opts={}){return [...new Set(this)];}
 
 //»
+
+//Keycode map«
+
+const KC = {
+	'BACK': 8,
+	8: 'BACK',
+	'TAB': 9,
+	9: 'TAB',
+	'ENTER': 13,
+	13: 'ENTER',
+	'SHIFT': 16,
+//	16: 'SHIFT',
+	16: '',
+	'CTRL': 17,
+//	17: 'CTRL',
+	17: '',
+	'ALT': 18,
+//	18: 'ALT',
+	18: '',
+	'ESC': 27,
+	27: 'ESC',
+	'SPACE': 32,
+	32: 'SPACE',
+	'PGUP': 33,
+	33: 'PGUP',
+	'PGDOWN': 34,
+	34: 'PGDOWN',
+	'END': 35,
+	35: 'END',
+	'HOME': 36,
+	36: 'HOME',
+	'LEFT': 37,
+	37: 'LEFT',
+	'UP': 38,
+	38: 'UP',
+	'RIGHT': 39,
+	39: 'RIGHT',
+	'DOWN': 40,
+	40: 'DOWN',
+	'INS': 45,
+	45: 'INS',
+	'DEL': 46,
+	46: 'DEL',
+	48:'0',
+	49:'1',
+	50:'2',
+	51:'3',
+	52:'4',
+	53:'5',
+	54:'6',
+	55:'7',
+	56:'8',
+	57:'9',
+/*
+	101:'5',
+	102:'6',
+	104:'8',
+	105:'9',
+*/
+	'a': 65,
+	65: 'a',
+	'b': 66,
+	66: 'b',
+	'c': 67,
+	67: 'c',
+	'd': 68,
+	68: 'd',
+	'e': 69,
+	69: 'e',
+	'f': 70,
+	70: 'f',
+	'g': 71,
+	71: 'g',
+	'h': 72,
+	72: 'h',
+	'i': 73,
+	73: 'i',
+	'j': 74,
+	74: 'j',
+	'k': 75,
+	75: 'k',
+	'l': 76,
+	76: 'l',
+	'm': 77,
+	77: 'm',
+	'n': 78,
+	78: 'n',
+	'o': 79,
+	79: 'o',
+	'p': 80,
+	80: 'p',
+	'q': 81,
+	81: 'q',
+	'r': 82,
+	82: 'r',
+	's': 83,
+	83: 's',
+	't': 84,
+	84: 't',
+	'u': 85,
+	85: 'u',
+	'v': 86,
+	86: 'v',
+	'w': 87,
+	87: 'w',
+	'x': 88,
+	88: 'x',
+	'y': 89,
+	89: 'y',
+	'z': 90,
+	90: 'z',
+	'OSKEY': 91,
+	91: 'OSKEY',
+	96: '#0',
+	97: '#1',
+	98: '#2',
+	99: '#3',
+	100: '#4',
+	101: '#5',
+	102: '#6',
+	103: '#7',
+	104: '#8',
+	105: '#9',
+	106:'#*',
+	107:'#+',
+	109:'#-',
+	110:'#.',
+	111:'#/',
+	144: 'NUMLOCK',
+	'NUMLOCK': 144,
+	';': 186,
+	186: ';',
+	'=': 187,
+	187: '=',
+	',': 188,
+	188: ',',
+	'-': 189,
+	189: '-',
+	'.': 190,
+	190: '.',
+	'/': 191,
+	191: '/',
+	'\x60': 192,
+	192: '\x60',
+	'[': 219,
+	219: '[',
+	'\\': 220,
+	220: '\\',
+	']': 221,
+	221: ']',
+	"'": 222,
+	222: "'",
+	229: "u",//FJIUOPL: WHY IS THIS NECESSARY TO MAKE u_CAS WORK ON CHROMEBOOK?
+	"LAST_KC": 223
+}
+
+//»
+
 export const globals = {//«
 	workers:{
 //		faust: new Worker("/wasm/faust.js"),
 	},
 	qObj,
+	KC,
 	NS: window[__OS_NS__],
 	isMobile,
 	isFox: navigator.userAgent.match(/Firefox/),
@@ -251,11 +413,12 @@ export const globals = {//«
 	MAX_TEXTAREA_BYTES,
 
 	ALWAYS_PREVENT,
-	shell_libs: {}
+	shell_libs: {},
+	audio:{},
+	api
 
 };//»
-
-export const NS = window[__OS_NS__];
+NS.globals = globals;
 
 //»
 

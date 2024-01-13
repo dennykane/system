@@ -14,6 +14,7 @@ main.style.userSelect="text";
 main._fs=18;
 
 const init=async()=>{//«
+
 	let rv = await fetch(HELP_URL);
 	if (!rv.ok){
 cerr("Could not fetch the html!!!");

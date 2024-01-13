@@ -2454,6 +2454,7 @@ this.api = {//«
 
 }
 NS.api.fs=this.api;
+globals.api.fs=this.api;
 //»
 
 //}; end FS«

@@ -3,7 +3,7 @@
 import { util, api as capi } from "util";
 import { globals } from "config";
 
-const{strnum, isarr, isstr, isnum, isobj, make, KC, kc, log, jlog, cwarn, cerr}=util;
+const{strnum, isarr, isstr, isnum, isobj, make, log, jlog, cwarn, cerr}=util;
 //»
 
 export const mod = function(termobj) {
@@ -12,14 +12,12 @@ export const mod = function(termobj) {
 
 const {//«
 	wrap_line,
-    refresh,
-    onescape,
-    topwin,
-    modequit,
-//	w,
+	refresh,
+	onescape,
+	topwin,
+	modequit,
 	h
 } = termobj;//»
-
 const less = this;
 
 let ALLOWED_EXTRA_SPACES = 15;
@@ -28,6 +26,7 @@ let raw_lines;
 let filename;
 
 let lines, line_colors;
+let line_select_mode;
 let x=0,y=0,scroll_num=0;
 
 let stat_message;
@@ -42,10 +41,10 @@ let scroll_search_dir;
 let scroll_fname;
 let scroll_lines_checked;
 
-
 //»
 
 //Funcs«
+
 const okint = val=>{//«
     if (typeof val == "number") return true;
     if (typeof val == "string") {
@@ -54,65 +53,11 @@ const okint = val=>{//«
     return false;
 };//»        
 const set_lines=(if_hold)=>{if(if_hold)termobj.hold_lines();termobj.set_lines(lines,line_colors);};
-const quit=()=>{termobj.onescape=onescape;modequit();};
+const quit=(rv)=>{termobj.onescape=onescape;modequit(rv);};
 const render = () => {//«
-	less.x = x;
-	less.y = y;
-	less.scroll_num = scroll_num;
-//	less.stat_input_type = stat_input_type;
-	less.stat_com_arr = stat_com_arr;
-	less.stat_message = stat_message;
-	less.stat_cb = stat_cb;
 	refresh();
 };//»
-const justify = (arg,len,start)=>{//«
-	let out;
-	if (arg.split) {
-		let MIN_LN_WID=len-ALLOWED_EXTRA_SPACES;
-		if (MIN_LN_WID <= 0) MIN_LN_WID = ALLOWED_EXTRA_SPACES;
-		let words = arg.split(/ +/);
-		out = [];
-		let ln="";
-		for (let i=0; i < words.length; i++){
-			let w = words[i];
-			let s = `${ln} ${w}`;
-			if (s.length > len){
-				out.push(ln);
-				ln=w;
-			}
-			else if (ln) ln = s;
-			else ln = w;
-		}
-		out.push(ln);
-	}
-	else {
-		out = arg;
-	}
 
-	let finalResult=[];
-	for (var i = 0; i < out.length - 1; i++){    
-		if(out[i].indexOf(' ') != -1){  
-			while(out[i].length < len){      
-				for(var j=0; j < out[i].length-1; j++){
-					if(out[i][j] == ' '){
-						out[i] = out[i].substring(0, j) + " " + out[i].substring(j);
-						if(out[i].length == len) break;
-						while(out[i][j] == ' ') j++;
-					}
-				}
-			}      
-		}    
-		finalResult.push(out[i]);    
-	}
-	finalResult.push(out.pop());
-	if (start){
-		let all=[];
-		for (let ln of finalResult) all.push(`${start}${ln}`);
-		return all;
-	}
-	return finalResult;
-
-};//»
 const do_scroll_search=(if_start)=>{//«
 	var strlen = scroll_search_str.length;
 	if (scroll_search_dir==":"){//«
@@ -270,8 +215,10 @@ return;
 	}//»
 	render();
 }//»
+
 //»
 //Obj/CB«
+
 termobj.onescape=()=>{//«
 	let got=false;
 	if (line_colors.length){
@@ -354,10 +301,14 @@ this.key_handler=(sym, e, ispress, code)=>{//«
 	}//»
 
 	if (sym=="UP_") {//«
-		if (scroll_num - 1 >= 0) {
-			scroll_num--;
-			render();
+		if (line_select_mode && y > 0){
+			y--;
 		}
+		else if (scroll_num - 1 >= 0) {
+			scroll_num--;
+		}
+		else return;
+		render();
 	}//»
 	else if (sym=="SPACE_"){//«
 		if (raw_lines&&fmt_lines){
@@ -375,31 +326,48 @@ this.key_handler=(sym, e, ispress, code)=>{//«
 		}
 	}//»
 	else if (sym=="DOWN_") {//«
-		if (scroll_num+termobj.h-num_stat_lines < lines.length) {
-			scroll_num++;
-			render();
+		if (line_select_mode && y+num_stat_lines < termobj.h-1){
+			if (y+scroll_num === lines.length-1) return;
+			y++;
 		}
+		else if (scroll_num+termobj.h-num_stat_lines < lines.length) {
+			scroll_num++;
+//			y++;
+		}
+		render();
 	}//»
 	else if (sym=="PGUP_") {//«
 		e.preventDefault();
-		if (scroll_num == 0) return;
+		if (scroll_num == 0) {
+			y=0;
+			render();
+			return;
+		}
 		let donum;
 		if (scroll_num - termobj.h > 0) {
 			donum = termobj.h;
 			scroll_num -= termobj.h-1;
 		}
 		else scroll_num = 0;
-		y=0;
+//		y=0;
 		render();
 	}//»
 	else if (sym=="PGDOWN_") {//«
 		e.preventDefault();
 		let donum = termobj.h-1;
-		if (scroll_num + donum-num_stat_lines >= lines.length) return;
+//		if (scroll_num + donum-num_stat_lines >= lines.length) {
+		if (scroll_num + donum >= lines.length) {
+//log("!!!");
+			y = lines.length-1-scroll_num;
+			render();
+			return;
+		}
 		scroll_num += donum;
 		if (scroll_num + termobj.h-num_stat_lines > lines.length) {
 			scroll_num = lines.length - termobj.h + num_stat_lines;
 			if (scroll_num < 0) scroll_num = 0;
+		}
+		else{
 		}
 		y=0;
 		render();
@@ -411,16 +379,18 @@ this.key_handler=(sym, e, ispress, code)=>{//«
 		render();
 	}//»
 	else if (sym=="END_") {//«
-		if (scroll_num + termobj.h - num_stat_lines >= lines.length) return;
+		if (scroll_num + termobj.h - num_stat_lines >= lines.length) {
+			return;
+		}
 		scroll_num = lines.length - termobj.h + num_stat_lines;
+		y = lines.length-1-scroll_num;
 		if (scroll_num < 0) scroll_num = 0;
-		y=0;
+//		y=0;
 		render();
 	}//»
-//	else if (sym=="q_") {//«
-//log(2, sym);
-//		setTimeout(quit,10);
-//	}//»
+else if (sym=="ENTER_"){//«
+	if (line_select_mode) quit(true);
+}//»
 	else if (sym=="n_") {//«
 		if (scroll_search_str) do_scroll_search();
 	}//»
@@ -438,16 +408,30 @@ this.key_handler=(sym, e, ispress, code)=>{//«
 	}//»
 
 }//»
+
+//»
+//defineProperty«
+Object.defineProperty(this,"x",{get:()=>x});
+Object.defineProperty(this,"y",{get:()=>y});
+Object.defineProperty(this,"line_select_mode",{get:()=>line_select_mode});
+Object.defineProperty(this,"scroll_num",{get:()=>scroll_num});
+Object.defineProperty(this,"stat_com_arr",{get:()=>stat_com_arr});
+Object.defineProperty(this, "stat_message", {
+	get: () => stat_message,
+	set: (s) => stat_message = s
+});
 //»
 
-this.init = (linesarg, fname, o)=>{//«
+this.init = (linesarg, fname, o={})=>{//«
+
+
 let {opts}=o;
 this.command_str = o.command_str;
 this.parSel = opts.parsel;
+line_select_mode = o.lineSelect;
 return new Promise((Y,N)=>{
 
 	filename=fname;
-	if (!o) o = {};
 	let if_dump = o.DUMP;
 	let func;
 	lines=[];
@@ -533,6 +517,7 @@ return;
 	}//»
 });
 
+
 }//»
 
 }
@@ -548,6 +533,55 @@ return;
 
 
 /*Unused: man pages formatting«
+
+const justify = (arg,len,start)=>{//«
+	let out;
+	if (arg.split) {
+		let MIN_LN_WID=len-ALLOWED_EXTRA_SPACES;
+		if (MIN_LN_WID <= 0) MIN_LN_WID = ALLOWED_EXTRA_SPACES;
+		let words = arg.split(/ +/);
+		out = [];
+		let ln="";
+		for (let i=0; i < words.length; i++){
+			let w = words[i];
+			let s = `${ln} ${w}`;
+			if (s.length > len){
+				out.push(ln);
+				ln=w;
+			}
+			else if (ln) ln = s;
+			else ln = w;
+		}
+		out.push(ln);
+	}
+	else {
+		out = arg;
+	}
+
+	let finalResult=[];
+	for (var i = 0; i < out.length - 1; i++){    
+		if(out[i].indexOf(' ') != -1){  
+			while(out[i].length < len){      
+				for(var j=0; j < out[i].length-1; j++){
+					if(out[i][j] == ' '){
+						out[i] = out[i].substring(0, j) + " " + out[i].substring(j);
+						if(out[i].length == len) break;
+						while(out[i][j] == ' ') j++;
+					}
+				}
+			}      
+		}    
+		finalResult.push(out[i]);    
+	}
+	finalResult.push(out.pop());
+	if (start){
+		let all=[];
+		for (let ln of finalResult) all.push(`${start}${ln}`);
+		return all;
+	}
+	return finalResult;
+
+};//»
 const fmt_man_termdump=(lns)=>{//«
 
 //let lns = str.split("\n");
@@ -835,6 +869,7 @@ function fmt_man_roff(linesarg,cb, opts) {//«
 	}//»
 	doline();
 }//»
+
 »*/
 
 

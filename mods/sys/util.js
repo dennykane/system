@@ -9,162 +9,42 @@ const {//«
 	EXT_TO_APP_MAP,
 	APPICONS,
 //	DEF_APP,
-	NS
+	NS,
+	KC
 }=globals;
-//»
-
-//Keycode map«
-const KC = {
-	'BACK': 8,
-	8: 'BACK',
-	'TAB': 9,
-	9: 'TAB',
-	'ENTER': 13,
-	13: 'ENTER',
-	'SHIFT': 16,
-//	16: 'SHIFT',
-	16: '',
-	'CTRL': 17,
-//	17: 'CTRL',
-	17: '',
-	'ALT': 18,
-//	18: 'ALT',
-	18: '',
-	'ESC': 27,
-	27: 'ESC',
-	'SPACE': 32,
-	32: 'SPACE',
-	'PGUP': 33,
-	33: 'PGUP',
-	'PGDOWN': 34,
-	34: 'PGDOWN',
-	'END': 35,
-	35: 'END',
-	'HOME': 36,
-	36: 'HOME',
-	'LEFT': 37,
-	37: 'LEFT',
-	'UP': 38,
-	38: 'UP',
-	'RIGHT': 39,
-	39: 'RIGHT',
-	'DOWN': 40,
-	40: 'DOWN',
-	'INS': 45,
-	45: 'INS',
-	'DEL': 46,
-	46: 'DEL',
-	48:'0',
-	49:'1',
-	50:'2',
-	51:'3',
-	52:'4',
-	53:'5',
-	54:'6',
-	55:'7',
-	56:'8',
-	57:'9',
-/*
-	101:'5',
-	102:'6',
-	104:'8',
-	105:'9',
-*/
-	'a': 65,
-	65: 'a',
-	'b': 66,
-	66: 'b',
-	'c': 67,
-	67: 'c',
-	'd': 68,
-	68: 'd',
-	'e': 69,
-	69: 'e',
-	'f': 70,
-	70: 'f',
-	'g': 71,
-	71: 'g',
-	'h': 72,
-	72: 'h',
-	'i': 73,
-	73: 'i',
-	'j': 74,
-	74: 'j',
-	'k': 75,
-	75: 'k',
-	'l': 76,
-	76: 'l',
-	'm': 77,
-	77: 'm',
-	'n': 78,
-	78: 'n',
-	'o': 79,
-	79: 'o',
-	'p': 80,
-	80: 'p',
-	'q': 81,
-	81: 'q',
-	'r': 82,
-	82: 'r',
-	's': 83,
-	83: 's',
-	't': 84,
-	84: 't',
-	'u': 85,
-	85: 'u',
-	'v': 86,
-	86: 'v',
-	'w': 87,
-	87: 'w',
-	'x': 88,
-	88: 'x',
-	'y': 89,
-	89: 'y',
-	'z': 90,
-	90: 'z',
-	'OSKEY': 91,
-	91: 'OSKEY',
-	';': 186,
-	186: ';',
-	'=': 187,
-	187: '=',
-	',': 188,
-	188: ',',
-	'-': 189,
-	189: '-',
-	'.': 190,
-	190: '.',
-	'/': 191,
-	191: '/',
-	'\x60': 192,
-	192: '\x60',
-	'[': 219,
-	219: '[',
-	'\\': 220,
-	220: '\\',
-	']': 221,
-	221: ']',
-	"'": 222,
-	222: "'",
-	229: "u",//FJIUOPL: WHY IS THIS NECESSARY TO MAKE u_CAS WORK ON CHROMEBOOK?
-	"LAST_KC": 223
-}
-const kc=(num,str)=>{if(num==KC[str])return true;return false;};
-
-//this.KC=KC;
 //»
 
 //API«
 
-//let VERNUM=1;
-
+//Logging«
+const trace = (args,num) => {//«
+	let stack = (new Error()).stack;
+	let s = stack.split("\n")[3];
+	let arr = s.split(":");
+	arr.pop();
+	let str="";
+	try{
+		let line = arr.pop();
+		let fname = arr.pop().split("/").pop().split("?")[0];
+		str = `${fname}:${line}`;
+	}catch(e){}
+	if (num===0) console.log(...args,str);
+	else if (num===1) console.warn(...args,str);
+	else console.error(...args,str);
+};//»
+const log=(...args)=>{trace(args,0);}
+const wrn = (...args) => {trace(args, 1);}
+const cwarn = wrn;
+const err=(...args)=>{trace(args,2);}
+const cerr = err;
+//»
 const make=(which)=>{return document.createElement(which);}
 const mk=make;
-
 //Load/Script«
+
 const normPath = (path, cwd)=>{//«
 	if (!(path.match(/^\x2f/) || (cwd && cwd.match(/^\x2f/)))) {
-		cerr("normPath():INCORRECT ARGS:", path, cwd);
+cerr("normPath():INCORRECT ARGS:", path, cwd);
 		return null;
 	}
 	if (!path.match(/^\x2f/) && cwd) path = cwd + "/" + path;
@@ -317,6 +197,8 @@ const make_script = (path, load, err, ifrand, win) => {//«
 //»
 //»
 
+const kc=(num,str)=>{if(num==KC[str])return true;return false;};
+
 const dist=(x1,y1,x2,y2)=>{return(Math.sqrt(Math.pow(x2-x1,2)+Math.pow(y2-y1,2)))};
 
 const detectSwipe=(el, callback)=>{//«
@@ -446,6 +328,7 @@ const copyarea=mk('textarea');
 const gbid=id=>{return document.getElementById(id);};
 
 export const api = (()=>{
+
 
 const rand = (min,max)=>(Math.floor(Math.random()*(max-min+1))+min);
 const strToBuf=s=>{return blobToBuf(new Blob([s],{type:"text/plain"}));};
@@ -580,6 +463,7 @@ isArr:arg=>{return (arg && typeof arg === "object" && typeof arg.length !== "und
 isId:str=>{return !!(str && str.match && str.match(/^[_a-zA-Z][_a-zA-Z0-9]*$/));},
 isFunc:arg=>{return (arg instanceof Function);},
 isBlob:arg=>{return (arg instanceof Blob);},
+isFin: Number.isFinite,
 strNum:strNum,
 strNumMinEx:(str,num)=>{return strNum(str,num,null,true);},
 
@@ -591,8 +475,8 @@ sha1:arg=>{return hashsum("SHA-1",arg);},
 sha256:arg=>{return hashsum("SHA-256",arg);},
 sha384:arg=>{return hashsum("SHA-384",arg);},
 sha512:arg=>{return hashsum("SHA-512",arg);},
-
-mk:which=>(document.createElement(which)),
+make,
+mk:make,
 mkbut:s=>{let d=document.createElement('button');if(s)d.innerHTML=s;return d;},
 mkdv:s=>{let d=document.createElement('div');if(s)d.innerHTML=s;return d;},
 mksp:s=>{let d=document.createElement('span');if(s)d.innerHTML=s;return d;},
@@ -632,45 +516,30 @@ return retstr;
 else throw new Error("Invalid arg to randstr");
 },//»
 numberLines:arr=>{if(!arr)arr=[];let tmp=[];let num=0;let numwid=(arr.length+"").length;for(let ln of arr){let numstr=(++num)+"";tmp.push(("0".repeat(numwid-numstr.length)+numstr)+ "\x20"+ln);}return tmp;},
-}
-})();
-
-//»
-
-//Logging«
-const trace = (args,num) => {//«
-	let stack = (new Error()).stack;
-	let s = stack.split("\n")[3];
-	let arr = s.split(":");
-	arr.pop();
-	let str="";
-	try{
-		let line = arr.pop();
-		let fname = arr.pop().split("/").pop().split("?")[0];
-		str = `${fname}:${line}`;
-	}catch(e){}
-	if (num===0) console.log(...args,str);
-	else if (num===1) console.warn(...args,str);
-	else console.error(...args,str);
-};//»
-const log=(...args)=>{trace(args,0);}
-const wrn = (...args) => {trace(args, 1);}
-const cwarn = wrn;
-const err=(...args)=>{trace(args,2);}
-const cerr = err;
-//»
-
-export const util = (()=>{//«
-return {
 sleep: (ms)=>{return new Promise((Y,N)=>{setTimeout(Y, ms);});},
 log,
 wrn,
 err,
 cwarn,
 cerr,
-KC,
 kc,
 gbid:gbid,
+}
+})();
+
+
+//»
+
+export const util = (()=>{//«
+return {
+sleep:api.sleep,
+log:api.log,
+wrn:api.wrn,
+err:api.err,
+cwarn:api.cwarn,
+cerr:api.cerr,
+kc:api.kc,
+gbid:api.gbid,
 jlog:api.jlog,
 isnotneg:api.isNotNeg,
 isint:api.isInt,
@@ -708,6 +577,8 @@ center:api.center
 //globals.util=util;
 //»
 
+NS.api.util = api;
+globals.api.util = api;
 
 /*
 mkAudio:()=>{//«
@@ -761,4 +632,5 @@ ctx: ctx
 
 },//»
 */
+
 
