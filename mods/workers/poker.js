@@ -1,3 +1,58 @@
+/*
+Fundamental combinatorial theory:
+
+Poker, as a game to be solved via all possible concrete combinations (without
+any abstractions) is technically impractical. So, our idea is to make an
+abstraction of particular suits, while staying perfectly concrete with the
+ranks.
+
+2 representations of all flop and later rounds:
+
+1) Rank-only (disregard all suits):
+12-345
+12-3456
+12-34567
+
+2) Ranks-of-same-suits (3-5 cards):
+3-to-flush: (flop only)
+1-23
+12-3
+
+4-to-flush: (flop or turn)
+1-234
+12-34
+
+1-234
+12-34
+
+5-to-flush: (flop, turn, river)
+1-2345
+12-345
+
+
+cmty = community
+
+Here, we are only going to focus on FLOP and TURN rounds, and both of those
+rounds are going to have "rank-type" and "flush-type" ways of representing the
+hands.  We will always return the rank representation. If there are 0 or 1
+cards needed for a flush, then we will also return the flush representation. On
+the flop, we can also return the flush representation if our hole cards
+participate in 2 cards needed.
+
+Question: On the flop, should we ever return the flush representation if our
+hole cards are suited, and 1 cmty card has the same suit?  Or, what if we are
+holding an Ace that matches the suit of 2 of the cmty cards? What about a King?
+Or Queen? At what point should we disregard the 1+2-to-a-flush draw? Why would
+we ever need to disregard it?
+
+Want to separate "flush-type" hands from "rank-type" hands, so that the given
+player is playing *either* a flush game or a rank game on the turn. Our
+thinking is that there is only one combination hand (straight flush), which
+does not occur often enough to be statistically significant enough for a "first
+approximation" type of algorithmic solution to poker.
+
+*/
+
 /*«
 Just put this into a web worker and add in logic to periodically pull the
 objects into the main thread where they can be combined (by trivially adding
@@ -27,6 +82,8 @@ const cerr=(...args)=>{console.error(...args);};
 //»
 
 //Var«
+
+let stopped = false;
 
 
 //let HOLES={};
@@ -60,15 +117,39 @@ let num_batches = 0;
 
 //Hand class rankings«
 
-const STRFL=9;
-const QUAD=8;
-const FULL=7;
-const FLUSH=6;
-const STRAIT=5;
-const TRIP=4;
-const TWOPR=3;
-const PAIR=2;
-const HIGH=1;
+/*
+
+For our "first approximation" purposes, straight flushes DO NOT EXIST. The interesting
+thing about poker is that:
+
+1) it sets rank type hands up against suit type hands.
+2) it sets sequential rank hands up against multi rank hands.
+
+So we have 4 classes of hands:
+
+- High multi-rank
+- Multi-suit
+- Sequential
+- Low multi-rank
+
+*/
+const STRFL = 9;
+
+//High multi-rank
+const QUAD = 8;
+const FULL = 7;
+
+//Multi-suit
+const FLUSH = 6;
+
+//Sequential
+const STRAIT = 5;
+
+//Low multi-rank
+const TRIP = 4;
+const TWOPR = 3;
+const PAIR = 2;
+const HIGH = 1;
 
 //»
 //Human-readable card strings«
@@ -291,7 +372,6 @@ const ACTION_RAISE = 2;
 const ALL_ACTIONS = [ACTION_FOLD, ACTION_CALL, ACTION_RAISE];
 const NUM_ACTIONS = ALL_ACTIONS.length;
 
-
 const PREFLOP_ROUND = 0;
 const FLOP_ROUND = 1;
 const TURN_ROUND = 2;
@@ -399,7 +479,6 @@ const get_hand_str = (player, round) => {//«
 	let s2 = hand[1]%4;
 
 	let tmp;
-
 
 	if (round === FLOP_ROUND){//«
 		let table_suit_types = flop_suit_types;
@@ -534,12 +613,12 @@ const get_hand_str = (player, round) => {//«
 		return `${r1}${r2}${a[0]}${a[1]}${a[2]}${a[3]}-${fl_type}`;
 //		return `${r1}${r2}${r3}${r4}${r5}${r6}-${fl_type}`;
 	}//»
-	else {
+	else {//«
 		let table_suit_types = river_suit_types;
 		let fl_type;
 		if (s1===s2){//«
 			if (table_suit_types[s1]>2){
-		//log("Have river flush (same hole suits)");
+//log("Have river flush (same hole suits)");
 				fl_type = "1";
 			}
 			else{
@@ -547,15 +626,15 @@ const get_hand_str = (player, round) => {//«
 			}
 		}
 		else if (table_suit_types[s1]>3){
-		//log("Have river flush (diff hole suits)");
+//log("Have river flush (diff hole suits)");
 			fl_type = "2";
 		}
 		else if (table_suit_types[s2]>3){
-		//log("Have river flush (diff hole suits)");
+//log("Have river flush (diff hole suits)");
 			fl_type = "2";
 		}
 		else fl_type = "0";
-		//»
+//»
 	/*C-like sort algo«
 		if (r4 < r3){//«
 			tmp = r3;
@@ -609,9 +688,10 @@ const get_hand_str = (player, round) => {//«
 		}//»
 	»*/
 		let a = [r3,r4,r5,r6,table_ranks_ch[4]].sort();
-	//	return `${r1}${r2}${r3}${r4}${r5}${r6}${r7}-${fl_type}`;
+//		return `${r1}${r2}${r3}${r4}${r5}${r6}${r7}-${fl_type}`;
 		return `${r1}${r2}${a[0]}${a[1]}${a[2]}${a[3]}${a[4]}-${fl_type}`;
-	}
+	}//»
+
 };//»
 
 const evaluate = (hand, opts={}) => {//«
@@ -1179,7 +1259,7 @@ pot_num++;
 }//»
 
 if (!await new_hand()) return true;
-return next(true);
+return next_player(true);
 
 };//»
 const post_blinds = () => {//«
@@ -1240,7 +1320,7 @@ log(num_batches, hand_num);
 	pot = 0;
 	return true;
 };//»
-const next = (no_advance) => {//«
+const next_player = (no_advance) => {//«
 	if (!no_advance) {
 		cur_pos++;
 		if (cur_pos == num_players) cur_pos = 0;
@@ -1303,7 +1383,6 @@ for (let i=0; i < cards_to_deal;){//«
 	i++;
 
 }//»
-//log(table_suit_types);
 
 //AZKOPLMNTY
 //table_ranks_ch = table_ranks_ch.sort();
@@ -1315,7 +1394,7 @@ for (let player of players) {
 	player.total_bet_in_round = 0;
 }
 
-return next(true);
+return next_player(true);
 
 };//»
 const game_loop = async() => {//«
@@ -1328,9 +1407,8 @@ players at the table with the same number of starting chips.
 	await new_hand();
 	let cur_bet;
 	while (true) {
-		let player =  await next();
+		let player =  await next_player();
 		if (player === true) return;
-//log(player);
 		cur_bet = player.act();
 		if (cur_bet == FOLD_ACTION){//«
 			player.folded = true;
@@ -1536,9 +1614,6 @@ PokerPlayerClass = AllInPlayer;
 
 //»
 
-let stopped = false;
-if (!stopped) game_loop();
-
 
 onmessage=(e)=>{//«
 	let s = e.data;
@@ -1561,7 +1636,8 @@ cwarn(`Stopped: ${stopped}`);
 			SLEEP_EVERY_NUM_HANDS = o.itersPerCycle;
 cwarn(`Got itersPerCycle`, o.itersPerCycle);
 		}
-
 	}
 };//»
+
+if (!stopped) game_loop();
 

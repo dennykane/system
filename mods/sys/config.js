@@ -413,6 +413,8 @@ export const globals = {//«
 	MAX_TEXTAREA_BYTES,
 
 	ALWAYS_PREVENT,
+	mods: {},
+	apps: {},
 	shell_libs: {},
 	audio:{},
 	api

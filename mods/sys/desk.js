@@ -1,3 +1,18 @@
+/*Here's the situation: Whenever the icon cursor moves away from an icon
+on the desktop, the icon's label should hide the overflow of the name, so that only
+one line is showing. Usually, the Window.on method will take care of this @VKUIOKL
+(i.e. when cycling through the window stack). But when we are opening a window, the
+newly created window is already occluding the desktop by the time this is called. So,
+we added in the test @FRUTIOP in open_file_by_path, for whenever the path refers
+to a folder window.
+*/
+/*@HFYUIOTS: Don't understand why app.onfocus was called by desk_menu.kill_cb. That
+messes up menu functions that call popups which call window.on, which calls app.onfocus.
+*/
+/*Maybe change certain desktop keydown functions from, e.g. m_ to the keypress "m", so
+that toggling windows doesn't mean that the m press event gets sent to a window (like
+the Terminal).
+*/
 /*3 simple changes to enable a (hopefully) seamless icon accounting experience«
 (but it really currently only seems to apply to literally mv'ing icons between
 desktop/folders). The idea is that there can be an arbitrary number of icons
@@ -1366,9 +1381,10 @@ this.addwin=(w)=>{//«
 	let imdiv = w.img_div.cloneNode(true);
 	imdiv._marr=5;
 	imdiv._pos="";
+	imdiv._padb="";
+	imdiv._padt=1.5;
 	d._add(imdiv);
 	let titstr = w.title;
-
 	let tit = mkdv();
 	tit._w="100%";
 	tit.innerText=titstr;
@@ -1505,7 +1521,6 @@ bar.onmousemove=noprop;
 st.onmousedown = (e) => {
 	if (e.button !== 0) return;
 	st._bor = `${TASKBAR_BOR_WID} dotted ${TASKBAR_BOR_COL}`;
-//log(st);
 };
 st.onmouseup=()=>{st._bor=`${TASKBAR_BOR_WID} ${TASKBAR_BOR_STY} ${TASKBAR_BOR_COL}`;};
 st.onmouseout=()=>{st._bor=`${TASKBAR_BOR_WID} ${TASKBAR_BOR_STY} ${TASKBAR_BOR_COL}`;};
@@ -1545,7 +1560,7 @@ setTimeout(()=>{
 	bar.style.transition = `bottom ${TASKBAR_TRANS_SECS}s ease 0s`;
 },500);
 //»
-//log(st);
+
 };
 
 
@@ -1639,6 +1654,9 @@ d._z=ICON_Z;
 let wrapper = d.childNodes[0];
 wrapper.draggable=true;
 wrapper.iconElem=d;
+
+let img = wrapper.childNodes[0];
+img.iconElem = d;
 
 let label = d.childNodes[1];
 label._over="hidden";
@@ -1927,9 +1945,7 @@ this.add_overlay = () => {//«
 	return overdiv;
 };
 //»
-this.showName = () => {//«
-	label._over = "";
-};//»
+this.showName=()=>{label._over="";};
 this.hideName=()=>{label._over="hidden";};
 this.setName = s =>{//«
 	namesp.innerHTML="";
@@ -3839,15 +3855,13 @@ this.setWinArgs=args=>{//«
 			if (this === CWIN) return;
 			CWIN&&CWIN.off();
 		}
-		else {
-			if (CUR.curElem.parentNode === desk) {
-				desk.lastcurpos = CUR.getpos();
-				CUR.off();
-			}
-		}
-		CWIN = this;
-		this.winElem._dis= "block";
 		if (is_folder && !this.is_minimized) {
+//VKUIOKL
+			if (CUR.curElem.parentNode === desk) {
+				let icn = CUR.geticon();
+				if (icn) icn.hideName();
+				desk.lastcurpos = CUR.getpos();
+			}
 			this.main.focus();
 			CUR.icon_div = this.main.icon_div;
 			CUR.main = this.main;
@@ -3856,9 +3870,10 @@ this.setWinArgs=args=>{//«
 //			CUR.set(2);
 			CUR.on();
 		}
+		CWIN = this;
+		this.winElem._dis= "block";
 		if (if_no_zup){}
 		else if (this.winElem._z && this.winElem._z < 10000000) this.up();
-
 		
 		this.zhold = null;
 		if (!this.no_shadow) this.winElem.style.boxShadow = window_boxshadow;
@@ -4227,7 +4242,6 @@ cwarn(`window_on(): NO WINOBJ for this`, this);
 			odiv._w= rect.width;
 			odiv._h = rect.height;
 			statdiv.innerHTML = Math.round(rect.width) + "x" + Math.round(rect.height) + "+" + Math.round(rect.left) + "+" + Math.round(rect.top);
-	//		statdiv._w= odiv._w - 40;
 		};//»
 		odiv.on=()=>{
 			statdiv._tcol= "#ccc";
@@ -4500,6 +4514,12 @@ cwarn("No drop on main window");
 			}
 		}
 		items.push(choices);
+		items.push(`Window ${winid.replace(/^win_/,"")} properties...`, ()=>{
+			let rect = win._gbcr();
+			let str = Math.round(rect.width) + "x" + Math.round(rect.height) + "+" + Math.round(rect.left) + "+" + Math.round(rect.top);
+			popup(str);
+		});
+//		items.push(`Window id: ${winid.replace(/^win_/,"")}`, null);
 		CG.on();
 		let op_hold = img_div._op;
 		let usex,usey;
@@ -4520,14 +4540,14 @@ cwarn("No drop on main window");
 			img_div._op=op_hold;
 			img_div._bgcol= "";
 			img_div._tcol="#a7a7a7";
-			if (this.app&&this.app.onfocus) {
-				setTimeout(this.app.onfocus,50);
-			}
+//HFYUIOTS
+//			if (this.app&&this.app.onfocus) {
+//				setTimeout(this.app.onfocus,50);
+//			}
 		};
 	};//»
 
 //Make app«
-
 
 	arg.topwin = this;
 	arg.FS_URL = fs_url;
@@ -4862,6 +4882,7 @@ const window_cycle = () => {//«
 
 	if (!num_win_cycles){
 //		if (taskbar_hidden&&num_minimized_wins) taskbar.show(true);
+
 		CWIN_HOLD = CWIN;
 		wins.sort((a,b)=>{
 			if (pi(a.winElem.style.zIndex) < pi(b.winElem.style.zIndex)) return 1;
@@ -5586,6 +5607,11 @@ const open_file_by_path = async(patharg, cb, opt={}) => {//«
 		if (!node.par) path="/";
 		else path = node.par.fullpath;
 		ok();
+//FRUTIOP
+		if (CUR.curElem.parentNode === desk) {
+			let icn = CUR.geticon();
+			if (icn) icn.hideName();
+		}
 		return open_folder_win(node.name, path, null, opt.WINARGS, opt.SAVER, opt.PREVPATHS);
 	}
 	if (check_special_ext(node)) return;
@@ -5703,7 +5729,7 @@ const win_reload = () => { //«
 
 const Cursor = function(){
 
-let curElem = make('div');
+let curElem = make('div');//«
 this.curElem = curElem;
 curElem.id="icon_cursor";
 curElem._pos="absolute";
@@ -5714,6 +5740,7 @@ curElem._h=IGSY;
 curElem._dis="none";
 curElem._op=1;
 curElem._mart=-1.5;
+//»
 this.ison=()=>{return (curElem._op==1);};
 this.isdesk=()=>{return (curElem.parentNode===desk);};
 this.xoff=()=>{return (curElem.parentNode===desk)?desk_grid_start_x:folder_grid_start_x;};
@@ -5724,14 +5751,16 @@ this.on=(is_tog)=>{//«
 	else if (!cur_showing) return;
 	curElem._op=1;
 	curElem._dis="";
-	curElem.scrollIntoViewIfNeeded();
+//log(curElem);
 	if (this.isdesk()){
 		let pos = desk.lastcurpos;
 		if (pos) return this.setpos(pos.X, pos.Y, null, is_tog);
 	}
 	this.set(4);
+	curElem.scrollIntoViewIfNeeded();
 };//»
 this.off=(is_tog)=>{//«
+
 	if (is_tog) cur_showing = false;
 	else if (cur_showing) return;
 	if (this.isdesk()){
@@ -5740,14 +5769,18 @@ this.off=(is_tog)=>{//«
 	}
 	curElem._op=0;
 	curElem._dis="none";
+
 };//»
 this.setpos=(X,Y,icn, is_tog)=>{//«
 	if (this.isdesk()) {
+//log("HELLO!!!");
 		let icn1 = this.geticon(desk);
 		curElem._x= this.xoff()+IGSX*X;
 		curElem._y= this.yoff()+IGSY*Y;
 		let icn2 = this.geticon(desk);
 		if (icn1) icn1.hideName();
+//log(1,icn1);
+//log(2,icn2);
 		if (icn2 && (is_tog || icn2 !== icn1)) {
 			icn2.showName();
 		}
@@ -5770,7 +5803,7 @@ this.set = (which)=>{//«
 		let got = this.main.lasticon;
 		if (got && got.parWin == this.main.top) {
 			curElem._loc(got.iconElem.offsetLeft+CUR_FOLDER_XOFF,got.iconElem.offsetTop+CUR_FOLDER_YOFF);
-			CWIN.app.stat(got.fullname);
+			if (CWIN) CWIN.app.stat(got.fullname);
 		}
 		else {
 			this.main.scrollTop=0;
@@ -5975,13 +6008,15 @@ this.move=(which, if_ctrl)=>{//«
 	else if (which==="D") this.down(if_ctrl);
 	if (!this.isdesk()) curElem.scrollIntoViewIfNeeded();
 };//»
-this.geticon=(fromwhere)=>{//«
+this.geticon = (fromwhere) => {//«
 	let icn;
 	if (!this.ison()) return null;
 	let rect = curElem.getBoundingClientRect();
 	let elems = document.elementsFromPoint((rect.left+rect.right)/2,(rect.top+rect.bottom)/2);
+//log(elems);
 	let e0=elems[0];
-	if (e0===CUR) e0=elems[1];
+	if (e0===CUR||e0===CG) e0=elems[1];
+//log(e0);
 	if(!e0) return null;
 	if (e0.iconElem) icn = e0.iconElem.icon;
 	else if (e0.className=="icon") icn = e0.icon;
@@ -6103,6 +6138,7 @@ cerr("Nothing returned from pathToNode:\x20"+fullpath);
 	reload_desk_icons(arr);
 };//»
 const open_folder_win = (name, path, iconarg, winargs, saverarg, prevpaths) => {//«
+
 	let icn = iconarg ||{appName: FOLDER_APP,name: name,path: path,fullpath:()=>{(path + "/" + name).regpath()}};
 	icn.winargs = winargs;
 	open_new_window(icn, null, {SAVER: saverarg, PREVPATHS: prevpaths});
@@ -8372,7 +8408,18 @@ detectClick(document.body, 666, ()=>{//«
 
 //»
 //Util«
-
+window.onblur=(e)=>{//«
+	let wins = workspaces.flat();
+	for (let w of wins){
+		if (w.app && w.app.onwinblur) w.app.onwinblur();
+	}
+};//»
+window.onfocus=(e)=>{//«
+	let wins = workspaces.flat();
+	for (let w of wins){
+		if (w.app && w.app.onwinfocus) w.app.onwinfocus();
+	}
+};//»
 const show_node_props=async(node)=>{//«
 
 	const pop=()=>{popup(s+"</div>",{title: "File node properties", wide: true});};

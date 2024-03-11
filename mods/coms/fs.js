@@ -111,31 +111,35 @@ const com_vim = async (args, o) => {//«
 	let {term, command_str, opts}=o; 
 	if (term.ssh_server) return {out: `No 'vim' in "ssh server" mode!`}
 
-/*This is for testing windowed apps.«
-This means that the file you are editing is
-being used by the Meta app, which is only really launched by an app icon that
-has a file arg (which would be the same file that is being edited here) and an
-optional data_file arg for apps that need to call onloadfile.
+/*«Old
+//This is for testing windowed apps.«
+//This means that the file you are editing is
+//being used by the Meta app, which is only really launched by an app icon that
+//has a file arg (which would be the same file that is being edited here) and an
+//optional data_file arg for apps that need to call onloadfile.
 
-»*/
+//»
 	let is_meta_app = opts["is-meta-app"];
 
-/*This is for testing CLI commands«
+//This is for testing CLI commands«
 which is eval'd by com_meta in the terminal
 that has the window id given here.
-»*/
+//»
 	let meta_com_win = opts["meta-com-win"];//The numerical window id
 	let meta_com_args = opts["meta-com-args"];//Arguments to pass to meta command
 	let meta_com_term;//The handle to the eval'ing terminal will go here
 
-/*This is a terminal with a vim instance that is in "Waiting..." mode, in order//«
+//This is a terminal with a vim instance that is in "Waiting..." mode, in order//«
 to get its lines run through the external algorithm that will be coded and 
 eval'd in this vim instance.
-»*/
+//»
 	let sw_lns_win = opts["switch-lns-win"];//Numerical window id of the "Waiting..." vim instance
 	let sw_lns_ed;//The handle to the editor (must have a switch_lines method)
 	let keylog_file = opts['keylog-file'];
 	let num_keylog_steps;
+
+»*/
+
 	let val;
 	let node;
 	let parnode;
@@ -143,6 +147,7 @@ eval'd in this vim instance.
 	let typ;
 	let linkNode;
 	let symbols;
+//	let meta_com_win = opts["meta-com-win"];//The numerical window id
 	if (opts.symbols){//«
 		let rv = await opts.symbols.toText(term);
 		if (!rv) return terr(`${opts.symbols}: symbol file not found`);
@@ -153,6 +158,17 @@ eval'd in this vim instance.
 			if (s.match(/^\w/)) symbols.push(s);
 		}
 	}//»
+	let text_input_func;
+//If a window's app object defines an ontextinput method, vim will call it with its text
+	if (opts["text-input-win"]){
+		let winid = opts["text-input-win"];
+		if (!winid) return {err: "No window id"};
+		if (!winid.match(/^[0-9]+$/)) return {err:"Invalid window id"};
+		let win = document.getElementById(`win_${winid}`);
+		if (!win) return {err: `No toplevel window with id: ${winid}`};
+		text_input_func = win._winObj.app.ontextinput;
+		if (!(text_input_func instanceof Function)) return {err: `The window's app object does not have an ontextinput method (${winid})`};
+	}
 	let path = args.shift();
 	if (path) {//«
 		fullpath = normPath(path, term.cur_dir);
@@ -186,6 +202,9 @@ log(val);
 	let vim = new NS.mods[DEF_EDITOR_MOD_NAME](term);
 	if (node) typ = node.type;
 	else if (parnode) typ = parnode.type;
+
+//Old«
+/*Keylog«
 	let keylog_keys;
 	if (keylog_file){
 		let obj = await keylog_file.toJSON(term);
@@ -206,6 +225,8 @@ log(obj);
 		}
 //		if (!(keylog_keys && isarr(keylog_keys))) return terr("Invalid or missing keylog file");
 	}
+»*/
+/*Meta«
 	let meta_app;
 	if (is_meta_app){//«
 		let paths = globals.meta_paths;
@@ -234,20 +255,26 @@ log(obj);
 cerr("HOWDIDUGETHERE!?!?");
 		}
 	}//»
+»*/
+//»
+
 	let mess = await vim.init(val, fullpath, {//«
 		FOBJ: node,
 		TYPE: typ,
 		linkNode,
 		command_str,
 		opts,
-		meta_app,
-		meta_com_term,
-		meta_com_args,
-		switch_lines_editor: sw_lns_ed,
 		symbols,
-		keylog_keys,
-		keylog_file,
-		num_keylog_steps
+		text_input_func
+//«
+//		meta_app,
+//		meta_com_term,
+//		meta_com_args,
+//		switch_lines_editor: sw_lns_ed,
+//		keylog_keys,
+//		keylog_file,
+//		num_keylog_steps
+//»
 	});//»
 	if (isstr(mess)){
 		return terr(mess);

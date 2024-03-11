@@ -31,15 +31,16 @@ that all of the normal piping and redirections should work.
 //Development mod deleting«
 
 const DEL_MODS=[
-	"util.less",
+//	"util.less",
 	"util.vim",
 //	"webmparser"
 //	"pager"
 ];
 const DEL_COMS=[
+//"audio"
 //	"yt",
 //	"test",
-//	"fs",
+	"fs",
 ];
 //»
 
@@ -111,6 +112,7 @@ const YT_COMS=[
 ];
 
 const ALL_LIBS = {
+	audio:["midiup"],
 	fs: FS_COMS,
 //	test: TEST_COMS,
 	yt: YT_COMS
@@ -1171,7 +1173,25 @@ cerr(e);
 
 //»
 
-const command_options={//«
+const command_options = {//«
+/*
+l: long options
+s: short options
+
+1 means that the option does not have an argument
+2 means that the option *may* have an argument
+3 means that the option requires an argument
+
+Any argument for a short option requires a mediating space. Below, the '4' is the
+argument for the 'x' option.
+
+~$ mycommand -x 4 filename.js
+
+Long options may be given an argument like this:
+
+~$ dosomething --like-this="Right here" to_some.json
+
+*/
 	ssh:{//«
 		s:{c:1, s:1, x:1, i: 1},
 		l:{client: 1, server: 1}
@@ -1201,10 +1221,11 @@ const command_options={//«
 		l: {
 			parsel: 1,
 			"convert-markers": 1,
-			"is-meta-app": 1,
-			'switch-lns-win': 3,
-			'meta-com-win': 3,
-			'meta-com-args': 3,
+//			"is-meta-app": 1,
+//			'switch-lns-win': 3,
+//			'meta-com-win': 3,
+//			'meta-com-args': 3,
+			"text-input-win": 3,
 			symbols: 3,
 			'keylog-file': 3,
 			'num-keylog-steps':3

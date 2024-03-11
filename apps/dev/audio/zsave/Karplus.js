@@ -839,7 +839,7 @@ function startGuitarPlaying() {//«
 
 export const app = function(Win, Desk) {//«
 
-let DIST_FACTOR = 50;
+let DIST_FACTOR = 0;
 //«
 
 
@@ -858,7 +858,6 @@ const makeDistortionCurve=(amount)=>{
 }
 
 //»
-
 
 let ctx = globals.audioCtx || new AudioContext();
 globals.audioCtx = ctx;
@@ -879,9 +878,10 @@ f.frequency.value=2500;
 //log(f);
 //g.connect(outGain);
 //g.connect(dist);
-g.connect(f);
+//g.connect(f);
 //dist.connect(f);
-f.connect(outGain);
+//f.connect(outGain);
+g.connect(outGain);
 //dist.connect(outGain);
 
 

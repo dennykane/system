@@ -1,3 +1,9 @@
+/*text_input_func is a function that will be called with the editor's string contents
+A window's application must define an ontextinput method. The window's id is given on 
+the CLI like this:
+~$ vim --on-text-input=<winid> somefile.js
+The function is currently called from test_function (t_CAS)
+*/
 /*
 New functions (that might be screwing things up with print_chars(ins=true)):
 insert_multiline_comment
@@ -365,6 +371,8 @@ let is_root = false;
 
 let app_cb;
 
+let text_input_func;
+
 let hold_overrides;
 
 let yank_buffer;
@@ -611,7 +619,11 @@ x=0;
 }//»
 
 const test_function=async()=>{//«
-cwarn("What to test?");
+
+//cwarn("What to test?");
+if (!text_input_func) return;
+text_input_func(get_edit_str());
+
 };//»
 
 const check_odd_escapes=(arr, iter)=>{//«
@@ -1353,7 +1365,10 @@ const get_edit_save_arr = () =>{//«
 		str += ln.join("")+"\n";
 	}
 	return [str.replace(/\n$/,""), uselines.length];
-};//»
+};
+const get_edit_str = ()=>{return get_edit_save_arr()[0];};
+
+//»
 const try_revert = ()=>{//«
 	if (!edit_fobj_hold) return;
 	stat_message+=" (reverting)";
@@ -5802,7 +5817,7 @@ let modret = await capi.getMod("util.pretty");
 pretty = modret.getmod().js;
 }
 let opts;
-({opts, symbols}=o);
+({opts, symbols, text_input_func}=o);
 if (symbols){
 SYMBOL_WORDS=symbols.map(w=>w.split(/\s+/)[0]);
 }

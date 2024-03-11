@@ -1,6 +1,3 @@
-/*
-Need to do crypto.getRandomValues() in workers/poker.js???
-*/
 //Imports«
 
 import { util, api as capi } from "util";
@@ -19,6 +16,26 @@ let Main = Win.main;
 let workers = [];
 let intervals = [];
 
+//let HOLES;
+let FLOPS;
+let TURNS;
+let RIVERS;
+
+let numThreads;
+
+//const MINS_PER_POLL = 5;
+//const SECS_PER_POLL = MINS_PER_POLL * 60;
+//const MS_PER_POLL = 1000 * SECS_PER_POLL;
+let MINS_PER_POLL, MS_PER_POLL;
+
+let itersPerCycle;
+
+let interval;
+
+//»
+
+//Funcs«
+
 const start_worker=()=>{//«
 
 	let worker = new Worker(`/mods/workers/poker.js?r=${(Math.random()+"").slice(12)}`);
@@ -36,14 +53,6 @@ cwarn(`Starting worker: ${workers.length}`);
 	}, MS_PER_POLL));
 
 }//»
-
-//let HOLES;
-let FLOPS;
-let TURNS;
-let RIVERS;
-
-let numThreads;
-
 const add_all = async(o) => {//«
 /*
 let holes = o.HOLES;//«
@@ -114,22 +123,7 @@ await fs.writeFile(`/home/me/.data/poker/RIVER_EV.json`, JSON.stringify(RIVERS))
 cwarn("Saved!");
 
 };//»
-
-//»
-
-//const MINS_PER_POLL = 5;
-//const SECS_PER_POLL = MINS_PER_POLL * 60;
-//const MS_PER_POLL = 1000 * SECS_PER_POLL;
-let MINS_PER_POLL, MS_PER_POLL;
-
-let itersPerCycle;
-
-let interval;
-
-this.onresize=()=>{};
-
-
-this.onappinit=async(arg)=>{//«
+const init = async (arg) => {//«
 
 if (arg.minsPerPoll){
 	MINS_PER_POLL = arg.minsPerPoll;
@@ -194,6 +188,12 @@ cwarn("All workers have been started");
 
 
 };//»
+
+//»
+
+//Obj/CB«
+
+this.onappinit=init;
 this.onkill=()=>{//«
 	for (let worker of workers) {
 		worker.terminate();
@@ -207,13 +207,21 @@ this.onkeydown=(e,k)=>{//«
 //	else if (k=="ENTER_") worker.postMessage("POLL");
 };//»
 
+//»
+
 }
 
 
 
 
 
-/*
+
+
+
+
+
+/*«
+
 const init = async()=>{//«
 	const model = tf.sequential();
 	model.add(tf.layers.dense({units: 1, inputShape: [1]}));
@@ -234,6 +242,6 @@ log(`Done: ${Date.now() - now}ms`);
 	let val = model.predict(tf.tensor2d([20], [1, 1])).dataSync();
 log(val);
 }//»
-*/
 
+»*/
 
